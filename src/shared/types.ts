@@ -24,7 +24,6 @@ export interface GitIdentity {
 /** Schéma de `.github/ai-bot.yml`, tel que lu depuis le dépôt cible. */
 export interface BotConfig {
   readonly model?: string;
-  readonly maxTurns: number;
   readonly draftPullRequest: boolean;
   readonly branchPrefix: string;
   readonly baseBranch?: string;

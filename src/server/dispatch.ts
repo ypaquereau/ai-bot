@@ -38,7 +38,7 @@ export async function dispatchAgentTask(task: AgentTask): Promise<"dispatched" |
 
   await coreApi.createNamespacedSecret(
     serverEnv.agentsNamespace,
-    buildSecretManifest(secretName, token, serverEnv.anthropicApiKey, {
+    buildSecretManifest(secretName, token, serverEnv.cursorApiKey, {
       apiVersion: "batch/v1",
       kind: "Job",
       name,

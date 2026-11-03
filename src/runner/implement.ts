@@ -1,10 +1,19 @@
 import { join } from "node:path";
 import type { Octokit } from "@octokit/rest";
 import { runnerEnv } from "./env.js";
-import { checkoutNewBranch, cloneRepo, commitAll, configureIdentity, hasChanges, pushBranch } from "./git.js";
+import {
+  checkoutNewBranch,
+  cloneRepo,
+  commitAll,
+  configureIdentity,
+  excludeLocalPath,
+  hasChanges,
+  pushBranch,
+} from "./git.js";
 import { loadBotConfig } from "./config.js";
 import { createOctokit, postComment, transitionLabels, markFailed } from "./github.js";
-import { runClaude } from "./claude.js";
+import { runAgent } from "./agent.js";
+import { writeCursorPermissions } from "./cursor-permissions.js";
 import { findLatestPlanComment } from "./markers.js";
 import { STATE_LABELS, TRIGGER_LABELS } from "../shared/labels.js";
 import { logger } from "../shared/logger.js";
@@ -42,8 +51,10 @@ export async function runImplementTask(): Promise<void> {
   try {
     const repoDir = join(runnerEnv.workspace, "repo");
     await cloneRepo(owner, repo, repoDir);
+    await excludeLocalPath(repoDir, ".cursor/");
     const config = await loadBotConfig(repoDir);
     await configureIdentity(repoDir, config.gitIdentity);
+    await writeCursorPermissions(repoDir, "implement", config.allowedBashCommands);
 
     const branch = `${config.branchPrefix}issue-${issueNumber}`;
     await checkoutNewBranch(repoDir, branch);
@@ -58,27 +69,13 @@ export async function runImplementTask(): Promise<void> {
     const planComment = findLatestPlanComment(comments);
 
     logger.info("implémentation du plan", { owner, repo, issueNumber });
-    const allowedTools = [
-      "Read",
-      "Edit",
-      "Write",
-      "Glob",
-      "Grep",
-      ...config.allowedBashCommands.map((cmd) => `Bash(${cmd})`),
-    ];
-
-    const result = await runClaude({
+    const result = await runAgent({
       cwd: repoDir,
       prompt: buildImplementPrompt(issue.title, issue.body ?? "", planComment?.body ?? ""),
-      permissionMode: "acceptEdits",
-      allowedTools,
-      maxTurns: config.maxTurns,
+      mode: "implement",
       model: config.model,
     });
 
-    if (result.isError) {
-      throw new Error(result.text);
-    }
     if (!(await hasChanges(repoDir))) {
       throw new Error("L'agent n'a produit aucune modification de fichier.");
     }

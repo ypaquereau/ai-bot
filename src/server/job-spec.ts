@@ -90,8 +90,8 @@ export function buildJobManifest(task: AgentTask, name: string, secretName: stri
                 { name: "HOME", value: "/workspace" },
                 { name: "WORKSPACE", value: "/workspace" },
                 {
-                  name: "ANTHROPIC_API_KEY",
-                  valueFrom: { secretKeyRef: { name: secretName, key: "anthropicApiKey" } },
+                  name: "CURSOR_API_KEY",
+                  valueFrom: { secretKeyRef: { name: secretName, key: "cursorApiKey" } },
                 },
               ],
               resources: JOB_RESOURCES,
@@ -116,7 +116,7 @@ export function buildJobManifest(task: AgentTask, name: string, secretName: stri
 export function buildSecretManifest(
   secretName: string,
   token: string,
-  anthropicApiKey: string,
+  cursorApiKey: string,
   owner: V1OwnerReference,
 ): V1Secret {
   return {
@@ -129,6 +129,6 @@ export function buildSecretManifest(
       ownerReferences: [owner],
       labels: { app: "ai-bot-runner" },
     },
-    stringData: { token, anthropicApiKey },
+    stringData: { token, cursorApiKey },
   };
 }

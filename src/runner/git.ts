@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { chmod, writeFile } from "node:fs/promises";
+import { appendFile, chmod, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { runnerEnv } from "./env.js";
 import type { GitIdentity } from "../shared/types.js";
@@ -22,7 +22,7 @@ function run(
 /**
  * Écrit un script GIT_ASKPASS qui lit le token depuis le fichier monté par
  * k8s. Le token n'est ainsi jamais passé en argument de commande ni exposé
- * dans l'environnement du process `claude` (qui ne reçoit pas GIT_ASKPASS).
+ * dans l'environnement du process `agent` (qui ne reçoit pas GIT_ASKPASS).
  */
 async function writeAskPassScript(): Promise<string> {
   const scriptPath = join(runnerEnv.workspace, ".git-askpass.sh");
@@ -50,6 +50,15 @@ async function gitEnv(): Promise<NodeJS.ProcessEnv> {
 export async function cloneRepo(owner: string, repo: string, destDir: string): Promise<void> {
   const env = await gitEnv();
   await run("git", ["clone", "--depth", "1", `https://github.com/${owner}/${repo}.git`, destDir], { env });
+}
+
+/**
+ * Exclut `pattern` du dépôt via `.git/info/exclude` (jamais commité, local
+ * au clone). Utilisé pour que `.cursor/cli.json`, écrit par le runner pour
+ * piloter les permissions de l'agent, n'atterrisse jamais dans un commit.
+ */
+export async function excludeLocalPath(repoDir: string, pattern: string): Promise<void> {
+  await appendFile(join(repoDir, ".git", "info", "exclude"), `\n${pattern}\n`);
 }
 
 export async function checkoutNewBranch(repoDir: string, branch: string): Promise<void> {

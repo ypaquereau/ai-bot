@@ -38,7 +38,7 @@ roleRef:
 ---
 # Service account used by runner pods. It is granted no RBAC permissions at
 # all: the runner never talks to the Kubernetes API, only to the GitHub API
-# (via its scoped installation token) and to the Claude Code CLI.
+# (via its scoped installation token) and to the Cursor CLI.
 # automountServiceAccountToken is also disabled on the pod spec itself.
 apiVersion: v1
 kind: ServiceAccount

@@ -2,11 +2,9 @@
 # tune the bot's behaviour. All fields are optional; anything you omit falls
 # back to the default in src/shared/config-schema.ts.
 
-# Claude model to use. Omit to use the runner's default.
-# model: claude-sonnet-5-5
-
-# Safety cap on the number of agent turns per task (plan or implement).
-maxTurns: 40
+# Model to use (run `agent --list-models` to see what's available to your
+# account). Omit to use the CLI's default.
+# model: gpt-5
 
 # Open pull requests as drafts (recommended) or ready-for-review.
 draftPullRequest: true
@@ -17,9 +15,14 @@ branchPrefix: ai-bot/
 # Base branch for pull requests. Omit to use the repository's default branch.
 # baseBranch: main
 
-# Shell commands the agent is allowed to run with the Bash tool during the
-# implement step (plan is always read-only, regardless of this list).
-# Each entry becomes a `Bash(<entry>)` tool-permission pattern.
+# Shell commands the agent is allowed to run during the implement step (plan
+# is always read-only regardless of this list, via Cursor's --mode plan).
+# Each entry becomes a `Shell(head:rest*)` rule in `.cursor/cli.json`
+# (e.g. "npm test" -> Shell(npm:test*)). The implement step also passes
+# --force, which Cursor documents as allowing anything not explicitly
+# denied without prompting — so this list mainly documents intent; the
+# actual safety boundary is the hardcoded secrets deny list in
+# src/runner/cursor-permissions.ts.
 allowedBashCommands:
   - "npm install"
   - "npm test"

@@ -1,6 +1,6 @@
 # ai-bot
 
-A GitHub App that drives an AI coding agent ([Claude Code](https://docs.claude.com/en/docs/claude-code)) from issue labels.
+A GitHub App that drives an AI coding agent ([Cursor CLI](https://cursor.com/docs/cli)) from issue labels.
 
 ## Flow
 
@@ -17,8 +17,8 @@ State labels `ai:planning`, `ai:implementing` and `ai:failed` are applied only b
 ```
 GitHub ──webhook──▶ src/server (Hono)  ──creates──▶  k8s Job  ──runs──▶  src/runner (ephemeral pod)
                                                                               │
-                                                                              ├─ clones the repo (GIT_ASKPASS, token never reaches `claude`)
-                                                                              ├─ runs `claude -p` (read-only for plan, Edit/Write + allowed Bash for implement)
+                                                                              ├─ clones the repo (GIT_ASKPASS, token never reaches `agent`)
+                                                                              ├─ runs `agent -p` (Cursor CLI, read-only for plan, --force + .cursor/cli.json for implement)
                                                                               ├─ commits / pushes / opens the PR
                                                                               └─ transitions labels, comments on failure
 ```
@@ -30,9 +30,9 @@ GitHub ──webhook──▶ src/server (Hono)  ──creates──▶  k8s Job
   - The installation token is stored in a short-lived `Secret`, attached to its `Job` via `ownerReference` so it is garbage-collected automatically once the Job finishes (`ttlSecondsAfterFinished`).
 - **`src/runner`** — the image run by each Job. It:
   1. Reads the task (plan/implement, repo, issue, installation id) from environment variables set by the server.
-  2. Clones the repo over HTTPS using a `GIT_ASKPASS` script that reads the token from the mounted Secret file — the token is never passed as a CLI argument and never present in the environment of the `claude` subprocess.
-  3. Reads `.github/ai-bot.yml` from the target repo (see [`.github/ai-bot.yml.example`](.github/ai-bot.yml.example)) for model/branch/allowed-commands overrides.
-  4. Runs `claude -p` headless: `--permission-mode plan` (read-only) for planning, `--permission-mode acceptEdits` with `Edit`/`Write`/an allow-listed set of `Bash(...)` commands for implementation.
+  2. Clones the repo over HTTPS using a `GIT_ASKPASS` script that reads the token from the mounted Secret file — the token is never passed as a CLI argument and never present in the environment of the `agent` subprocess.
+  3. Reads `.github/ai-bot.yml` from the target repo (see [`.github/ai-bot.yml.example`](.github/ai-bot.yml.example)) for model/branch/allowed-commands overrides, and writes a per-task `.cursor/cli.json` permissions file (excluded from the clone's git tracking via `.git/info/exclude`, so it never ends up in a commit).
+  4. Runs `agent -p` headless (Cursor CLI): `--mode plan` without `--force` for planning, so the agent can only *propose* changes, never write them; `--force` for implementation, scoped by `.cursor/cli.json`'s `permissions.deny` (secrets) — see the security note below on what `--force` does and doesn't restrict.
   5. Commits, pushes the branch, opens a draft PR (by default) referencing `Closes #N`.
   6. Moves the issue to the next state label, or to `ai:failed` with an explanatory comment if anything throws.
   7. The plan itself lives only in the GitHub issue comment, never in the pod — nothing about a task's state outlives its Job.
@@ -43,7 +43,7 @@ GitHub ──webhook──▶ src/server (Hono)  ──creates──▶  k8s Job
 src/
   shared/   types, label names, .github/ai-bot.yml schema, logger
   server/   webhook receiver, GitHub App auth, k8s Job/Secret dispatch
-  runner/   git, GitHub API calls, Claude Code invocation, plan/implement orchestration
+  runner/   git, GitHub API calls, Cursor CLI invocation, plan/implement orchestration
 deploy/     raw Kubernetes manifests
 Dockerfile  multi-stage, two targets: `server` and `runner`
 ```
@@ -67,7 +67,7 @@ Dockerfile  multi-stage, two targets: `server` and `runner`
 | `GITHUB_APP_ID` | the App's numeric id |
 | `GITHUB_APP_PRIVATE_KEY` | the App's PEM private key |
 | `GITHUB_WEBHOOK_SECRET` | the webhook HMAC secret configured on the App |
-| `ANTHROPIC_API_KEY` | forwarded into each runner Job's Secret so `claude` can authenticate |
+| `CURSOR_API_KEY` | forwarded into each runner Job's Secret so the Cursor CLI (`agent`) can authenticate |
 | `ALLOWED_OWNERS` | comma-separated allow-list of GitHub orgs/users (defense in depth on top of the App's own install scope) |
 | `RUNNER_IMAGE` | image reference for the `runner` Dockerfile target |
 
@@ -117,8 +117,55 @@ npm run dev:server    # tsx watch, runs the webhook server locally
 
 Running a runner task locally requires a real `KubeConfig`-less environment — in practice you'll want to exec into a one-off pod or run `node dist/runner/index.js` directly with the env vars listed in `src/runner/env.ts` set by hand, plus a `GITHUB_TOKEN_FILE` pointing at a token with repo access.
 
+## Testing locally
+
+You can exercise the full flow — webhook → k8s Job → runner → real GitHub comment/labels/PR — before touching your production cluster. The one thing you can't avoid is a **real, disposable GitHub repo**: labels, comments and PRs go through the live GitHub API, there's no mock for them.
+
+1. **Scratch GitHub App + repo.** Create a GitHub App (same steps as above) and install it on one throwaway repo. Pick any string for the webhook secret — in this local setup nothing validates it against GitHub, you supply the same value to both the server and the simulator script below.
+2. **Local cluster + images:**
+   ```bash
+   npm run local:cluster   # kind create cluster, builds + loads ai-bot-server:dev / ai-bot-runner:dev
+   ```
+3. **Namespaces, RBAC, quota, and your secret** (fill in `deploy/07-secrets.example.yaml` with the scratch App's id/private key, your chosen webhook secret, and a real `CURSOR_API_KEY`):
+   ```bash
+   kubectl apply -f deploy/00-namespaces.yaml
+   kubectl apply -f deploy/01-rbac.yaml
+   kubectl apply -f deploy/02-resourcequota.yaml
+   kubectl apply -f <your-filled-in-secret>.yaml
+   ```
+   Skip `deploy/06-server-ingress.yaml` entirely — nothing needs to be publicly reachable for this.
+4. **Run the server against the local cluster**, without deploying it as a pod — fastest inner loop, no image rebuild per code change:
+   ```bash
+   export GITHUB_APP_ID=... GITHUB_APP_PRIVATE_KEY="$(cat your-app.pem)" GITHUB_WEBHOOK_SECRET=... \
+          CURSOR_API_KEY=... ALLOWED_OWNERS=your-scratch-owner RUNNER_IMAGE=ai-bot-runner:dev
+   kubectl config use-context kind-ai-bot-dev   # npm run local:cluster already did this once
+   npm run dev:server
+   ```
+   (If you'd rather test the real `deploy/04-server-deployment.yaml` pod too, point its `image`/`runnerImage` at the `:dev` tags, `imagePullPolicy: Never`, apply it and `05-server-service.yaml`, then `kubectl port-forward svc/ai-bot-server 3000:80 -n ai-bot`.)
+5. **Open a real issue** on the scratch repo, then trigger the webhook without any tunnel:
+   ```bash
+   npm run simulate:webhook -- issues.labeled \
+     --owner your-scratch-owner --repo your-scratch-repo --issue 1 \
+     --installation <installation-id> --label ai:plan
+   ```
+   For the re-plan path (a write-access comment on an `ai:plan-ready` issue):
+   ```bash
+   npm run simulate:webhook -- issue_comment.created \
+     --owner your-scratch-owner --repo your-scratch-repo --issue 1 \
+     --installation <installation-id> --sender your-github-login --body "looks good, adjust step 2"
+   ```
+6. **Watch it run:**
+   ```bash
+   kubectl get jobs -n ai-agents -w
+   kubectl logs -n ai-agents job/<job-name>
+   ```
+   and check the scratch issue for the plan comment / label transitions / PR.
+
+Note: `kind`'s default CNI (`kindnet`) doesn't enforce `NetworkPolicy`, so this setup can't verify that [`deploy/03-networkpolicy.yaml`](deploy/03-networkpolicy.yaml) actually restricts egress — only that the rest of the flow works. Either install Calico in your `kind` cluster, or treat that one check as something to confirm on the real cluster.
+
 ## Security notes
 
-- The GitHub installation token is scoped to a single repository and lives only in a per-Job `Secret`, mounted read-only and never passed to the `claude` subprocess's environment.
+- The GitHub installation token is scoped to a single repository and lives only in a per-Job `Secret`, mounted read-only and never passed to the `agent` subprocess's environment.
 - Runner pods run as a non-root user with a read-only root filesystem (writable `emptyDir`s only for `/workspace` and `/tmp`), no capabilities, and a `NetworkPolicy` restricting egress to DNS and HTTPS on public addresses only (RFC1918/link-local excluded) — see [`deploy/03-networkpolicy.yaml`](deploy/03-networkpolicy.yaml).
 - The server only dispatches a task if the triggering label/comment comes from a human (never a bot) with **write** access on the repository, and only for owners in `ALLOWED_OWNERS`.
+- **On `--force` and `.cursor/cli.json`** (see [`src/runner/cursor-permissions.ts`](src/runner/cursor-permissions.ts)): Cursor's own docs describe `--force` as allowing anything not explicitly denied, without prompting. That means during the implement step, `permissions.allow` (built from `.github/ai-bot.yml`'s `allowedBashCommands`) is closer to documentation of intent than a hard boundary — the actual enforcement is the hardcoded `permissions.deny` list (`.env*`, `*.key`, `*.pem`). Don't rely on `allowedBashCommands` alone to keep the agent from running something you don't want; tighten the deny list instead if that matters for your repo. The plan step has no such gap: without `--force`, Cursor's documented behavior is to only propose changes, never write them.

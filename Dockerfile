@@ -26,16 +26,20 @@ EXPOSE 3000
 ENTRYPOINT ["node", "dist/server/index.js"]
 
 # ---- runner: ephemeral image used by the k8s Jobs -------------------------
-# Needs git (to clone/commit/push) and the Claude Code CLI (to run the
-# agent itself). Kept on Debian slim rather than Alpine for glibc
-# compatibility with the Claude Code binary / its npm postinstall.
+# Needs git (to clone/commit/push) and the Cursor CLI (to run the agent
+# itself, see https://cursor.com/docs/cli). Kept on Debian slim rather than
+# Alpine for glibc compatibility with the Cursor CLI's prebuilt binary.
 FROM node:22-slim AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends git ca-certificates \
+  && apt-get install -y --no-install-recommends git ca-certificates curl \
   && rm -rf /var/lib/apt/lists/*
-RUN npm install -g @anthropic-ai/claude-code
+# Installed while HOME=/root (the default build-time user); symlinked onto a
+# fixed PATH entry because the runtime container overrides HOME to
+# /workspace (read-only root filesystem, no writable /root at runtime).
+RUN curl https://cursor.com/install -fsS | bash \
+  && ln -s /root/.cursor/bin/agent /usr/local/bin/agent
 RUN groupadd -g 10001 app && useradd -m -u 10001 -g app -d /workspace app
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist

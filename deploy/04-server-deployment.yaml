@@ -64,11 +64,11 @@ spec:
                 secretKeyRef:
                   name: ai-bot-server-secrets
                   key: githubWebhookSecret
-            - name: ANTHROPIC_API_KEY
+            - name: CURSOR_API_KEY
               valueFrom:
                 secretKeyRef:
                   name: ai-bot-server-secrets
-                  key: anthropicApiKey
+                  key: cursorApiKey
           volumeMounts:
             - name: tmp
               mountPath: /tmp

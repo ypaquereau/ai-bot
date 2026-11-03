@@ -34,7 +34,7 @@ spec:
         - { protocol: UDP, port: 53 }
         - { protocol: TCP, port: 53 }
     # HTTPS to the public internet only (api.github.com, github.com for git
-    # clone/push, the Anthropic API, package registries, ...). Private and
+    # clone/push, the Cursor API, package registries, ...). Private and
     # link-local ranges are excluded.
     - to:
         - ipBlock:

@@ -2,7 +2,6 @@ import { parse } from "yaml";
 import type { BotConfig } from "./types.js";
 
 export const DEFAULT_CONFIG: BotConfig = {
-  maxTurns: 40,
   draftPullRequest: true,
   branchPrefix: "ai-bot/",
   allowedBashCommands: ["npm install", "npm test", "npm run build", "npm run lint"],
@@ -34,7 +33,6 @@ export function parseBotConfig(yamlText: string | undefined): BotConfig {
 
   return {
     model: typeof raw.model === "string" ? raw.model : undefined,
-    maxTurns: typeof raw.maxTurns === "number" ? raw.maxTurns : DEFAULT_CONFIG.maxTurns,
     draftPullRequest:
       typeof raw.draftPullRequest === "boolean" ? raw.draftPullRequest : DEFAULT_CONFIG.draftPullRequest,
     branchPrefix: typeof raw.branchPrefix === "string" ? raw.branchPrefix : DEFAULT_CONFIG.branchPrefix,

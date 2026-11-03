@@ -2,7 +2,7 @@
   "name": "ai-bot",
   "version": "0.1.0",
   "private": true,
-  "description": "GitHub App qui pilote un agent IA (Claude Code) a partir des labels d'une issue",
+  "description": "GitHub App qui pilote un agent IA (Cursor CLI) a partir des labels d'une issue",
   "type": "module",
   "engines": {
     "node": ">=22"
@@ -12,7 +12,9 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "dev:server": "tsx watch src/server/index.ts",
     "start:server": "node dist/server/index.js",
-    "start:runner": "node dist/runner/index.js"
+    "start:runner": "node dist/runner/index.js",
+    "local:cluster": "bash scripts/local-cluster.sh",
+    "simulate:webhook": "node scripts/simulate-webhook.mjs"
   },
   "dependencies": {
     "@octokit/auth-app": "^7.1.3",

@@ -17,8 +17,8 @@ export const serverEnv = {
   githubAppPrivateKey: required("GITHUB_APP_PRIVATE_KEY"),
   githubWebhookSecret: required("GITHUB_WEBHOOK_SECRET"),
   githubApiUrl: optional("GITHUB_API_URL", "https://api.github.com"),
-  /** Propagé dans le Secret éphémère de chaque Job, pour que `claude` puisse s'authentifier. */
-  anthropicApiKey: required("ANTHROPIC_API_KEY"),
+  /** Propagé dans le Secret éphémère de chaque Job, pour que la CLI Cursor (`agent`) puisse s'authentifier. */
+  cursorApiKey: required("CURSOR_API_KEY"),
 
   /** Owners GitHub (orgs/users) autorisés à utiliser le bot, séparés par des virgules. */
   allowedOwners: optional("ALLOWED_OWNERS", "")
