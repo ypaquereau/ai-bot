@@ -35,11 +35,19 @@ ENV NODE_ENV=production
 RUN apt-get update \
   && apt-get install -y --no-install-recommends git ca-certificates curl \
   && rm -rf /var/lib/apt/lists/*
-# Installed while HOME=/root (the default build-time user); symlinked onto a
-# fixed PATH entry because the runtime container overrides HOME to
-# /workspace (read-only root filesystem, no writable /root at runtime).
-RUN curl https://cursor.com/install -fsS | bash \
-  && ln -s /root/.cursor/bin/agent /usr/local/bin/agent
+# Installed with HOME pointed at /opt/cursor-agent rather than the default
+# /root: /root is mode 700, so the non-root "app" user below could never
+# traverse into it to exec the binary, even via a symlink (that cost a
+# debugging round: the installer's own "add ~/.local/bin to PATH" step also
+# means the real binary lands under .local/, not .cursor/ as some
+# third-party docs claimed). The install itself leaves files group/other
+# readable+executable; the explicit chmod is a belt-and-suspenders in case
+# umask ever changes that.
+RUN mkdir -p /opt/cursor-agent \
+  && export HOME=/opt/cursor-agent \
+  && curl https://cursor.com/install -fsS | bash \
+  && chmod -R o+rX /opt/cursor-agent \
+  && ln -s /opt/cursor-agent/.local/bin/agent /usr/local/bin/agent
 RUN groupadd -g 10001 app && useradd -m -u 10001 -g app -d /workspace app
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist

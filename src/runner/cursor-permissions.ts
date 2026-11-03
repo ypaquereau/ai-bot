@@ -19,6 +19,16 @@ const SECRET_DENY_RULES = [
 /** Commandes de lecture sans risque, utiles à l'agent pour explorer le code pendant la planification. */
 const PLAN_READONLY_SHELL = ["Shell(ls)", "Shell(git)", "Shell(cat)", "Shell(grep)", "Shell(find)"] as const;
 
+/**
+ * Nom du fichier scratch où l'agent écrit son plan en mode `plan`. Les
+ * skills internes de l'agent (writing-plans, ...) produisent leur contenu
+ * substantiel via une écriture de fichier plutôt que dans leur réponse
+ * finale (voir src/runner/agent.ts) ; plutôt que de bloquer toute écriture
+ * et perdre ce contenu, on l'autorise explicitement pour ce seul fichier,
+ * que le runner relit ensuite (voir plan.ts) et exclut du dépôt git.
+ */
+export const PLAN_OUTPUT_FILENAME = "ai-bot-plan.md";
+
 function shellRuleFor(command: string): string {
   const [head, ...rest] = command.trim().split(/\s+/);
   if (!head) {
@@ -39,7 +49,10 @@ export async function writeCursorPermissions(
 ): Promise<void> {
   const permissions =
     mode === "plan"
-      ? { allow: ["Read(**)", ...PLAN_READONLY_SHELL], deny: [...SECRET_DENY_RULES, "Write(**)"] }
+      ? {
+          allow: ["Read(**)", ...PLAN_READONLY_SHELL, `Write(${PLAN_OUTPUT_FILENAME})`],
+          deny: [...SECRET_DENY_RULES],
+        }
       : {
           allow: ["Read(**)", "Write(**)", ...allowedBashCommands.map(shellRuleFor)],
           deny: [...SECRET_DENY_RULES],

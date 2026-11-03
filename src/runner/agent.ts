@@ -28,11 +28,15 @@ function restrictedEnv(): NodeJS.ProcessEnv {
 /**
  * Lance la CLI Cursor (`agent -p`) en mode headless.
  *
- * - `plan` : pas de `--force`, donc l'agent ne fait que *proposer* des
- *   changements sans jamais écrire sur disque (comportement documenté par
- *   défaut de la CLI) ; la planification reste donc en lecture seule même
- *   si `.cursor/cli.json` (écrit par src/runner/cursor-permissions.ts)
- *   autorise quelques commandes de lecture.
+ * - `plan` : pas de `--mode plan` ni de `--force`. `--mode plan` s'est avéré
+ *   taillé pour un usage interactif : en headless, il s'arrête après avoir
+ *   annoncé son intention au lieu de produire l'analyse complète attendue
+ *   dans le commentaire GitHub. Le mode agent par défaut, toujours sans
+ *   `--force`, documente le même comportement en écriture ("ne fait que
+ *   proposer des changements, n'écrit jamais sur disque") tout en rendant
+ *   une réponse texte complète — la planification reste donc en lecture
+ *   seule même si `.cursor/cli.json` (écrit par
+ *   src/runner/cursor-permissions.ts) autorise quelques commandes de lecture.
  * - `implement` : `--force` autorise les actions non explicitement
  *   refusées à s'exécuter sans confirmation interactive (qui bloquerait
  *   indéfiniment en headless). Dans ce mode, la vraie frontière de
@@ -42,13 +46,22 @@ function restrictedEnv(): NodeJS.ProcessEnv {
  * - `--trust` : nécessaire en headless car chaque pod clone un dépôt neuf,
  *   que la CLI considérerait sinon comme un espace de travail non
  *   approuvé et demanderait une confirmation interactive impossible ici.
+ * - `--output-format stream-json` plutôt que `json` : avec `json`, le champ
+ *   `.result` ne contient que le tout dernier message de l'agent — or les
+ *   skills internes qu'il invoque (writing-plans, etc.) produisent souvent
+ *   plusieurs segments de texte avant de conclure par une phrase de
+ *   narration courte ("je finalise le plan"), sans jamais livrer le
+ *   contenu dans ce dernier segment. `stream-json` expose chaque évènement
+ *   NDJSON, ce qui permet de concaténer tous les segments `assistant`
+ *   plutôt que de ne garder que le dernier. (Pour le mode `plan`, le vrai
+ *   contenu du plan est de toute façon récupéré séparément en relisant
+ *   PLAN_OUTPUT_FILENAME, voir plan.ts — ce flux sert surtout de filet pour
+ *   le résumé de `implement`.)
  */
 export function runAgent(options: AgentRunOptions): Promise<AgentRunResult> {
-  const args = ["-p", "--output-format", "json", "--trust", "--workspace", options.cwd];
+  const args = ["-p", "--output-format", "stream-json", "--trust", "--workspace", options.cwd];
 
-  if (options.mode === "plan") {
-    args.push("--mode", "plan");
-  } else {
+  if (options.mode === "implement") {
     args.push("--force");
   }
 
@@ -76,11 +89,52 @@ export function runAgent(options: AgentRunOptions): Promise<AgentRunResult> {
   });
 }
 
+interface AssistantEvent {
+  readonly type: "assistant";
+  readonly message: { readonly content: readonly { readonly type: string; readonly text?: string }[] };
+}
+
+interface ResultEvent {
+  readonly type: "result";
+  readonly subtype: string;
+  readonly is_error?: boolean;
+  readonly result?: string;
+}
+
+type StreamEvent = AssistantEvent | ResultEvent | { readonly type: string };
+
+/**
+ * Reconstruit le texte de la réponse à partir du flux NDJSON de
+ * `--output-format stream-json` : concatène tous les segments de texte
+ * `assistant` (pas seulement le dernier), puis retombe sur le `result`
+ * final, puis sur la sortie brute.
+ */
 function parseAgentOutput(stdout: string): AgentRunResult {
-  try {
-    const parsed = JSON.parse(stdout) as { result?: string };
-    return { text: parsed.result ?? stdout };
-  } catch {
+  const events: StreamEvent[] = [];
+  for (const line of stdout.split("\n")) {
+    if (!line.trim()) continue;
+    try {
+      events.push(JSON.parse(line) as StreamEvent);
+    } catch {
+      // ligne non-JSON (ex: sortie d'erreur mélangée) : ignorée.
+    }
+  }
+
+  if (events.length === 0) {
     return { text: stdout };
   }
+
+  const assistantText = events
+    .filter((e): e is AssistantEvent => e.type === "assistant")
+    .flatMap((e) => e.message.content)
+    .filter((c) => c.type === "text" && c.text)
+    .map((c) => c.text)
+    .join("\n\n");
+
+  if (assistantText.trim().length > 0) {
+    return { text: assistantText };
+  }
+
+  const resultEvent = events.find((e): e is ResultEvent => e.type === "result");
+  return { text: resultEvent?.result ?? stdout };
 }

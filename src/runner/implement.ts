@@ -45,7 +45,7 @@ export async function runImplementTask(): Promise<void> {
 
   await transitionLabels(octokit, owner, repo, issueNumber, {
     add: [STATE_LABELS.implementing],
-    remove: [TRIGGER_LABELS.approved],
+    remove: [TRIGGER_LABELS.approved, STATE_LABELS.failed],
   });
 
   try {
@@ -97,7 +97,7 @@ export async function runImplementTask(): Promise<void> {
     await postComment(octokit, owner, repo, issueNumber, `✅ Pull request ouverte : ${pr.html_url}`);
     await transitionLabels(octokit, owner, repo, issueNumber, {
       add: [STATE_LABELS.prOpened],
-      remove: [STATE_LABELS.implementing],
+      remove: [STATE_LABELS.implementing, STATE_LABELS.planReady],
     });
   } catch (error) {
     await markFailed(octokit, owner, repo, issueNumber, STATE_LABELS.implementing, String(error));
