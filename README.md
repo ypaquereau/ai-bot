@@ -1,5 +1,7 @@
 # ai-bot
 
+> **Proof of concept.** This is an exploratory scaffold, not a production-hardened project: it has been exercised through local end-to-end testing (see "Testing locally" below), but hasn't run against real-world traffic, hasn't had a security review beyond the measures described here, and its interfaces may change without notice. Review it carefully — especially the "Security notes" section — before pointing it at anything that matters.
+
 A GitHub App that drives an AI coding agent ([Cursor CLI](https://cursor.com/docs/cli)) from issue labels.
 
 ## Flow
