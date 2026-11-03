@@ -1,0 +1,97 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ai-bot-server
+  namespace: ai-bot
+  labels:
+    app: ai-bot-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ai-bot-server
+  template:
+    metadata:
+      labels:
+        app: ai-bot-server
+    spec:
+      serviceAccountName: ai-bot-server
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: server
+          image: ghcr.io/OWNER/ai-bot-server:latest # replace with your built image
+          imagePullPolicy: IfNotPresent
+          args: ["node", "dist/server/index.js"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          ports:
+            - containerPort: 3000
+          env:
+            - name: PORT
+              value: "3000"
+            - name: AGENTS_NAMESPACE
+              value: ai-agents
+            - name: RUNNER_SERVICE_ACCOUNT
+              value: ai-bot-runner
+            - name: RUNNER_IMAGE
+              valueFrom:
+                configMapKeyRef:
+                  name: ai-bot-server-config
+                  key: runnerImage
+            - name: ALLOWED_OWNERS
+              valueFrom:
+                configMapKeyRef:
+                  name: ai-bot-server-config
+                  key: allowedOwners
+            - name: GITHUB_APP_ID
+              valueFrom:
+                secretKeyRef:
+                  name: ai-bot-server-secrets
+                  key: githubAppId
+            - name: GITHUB_APP_PRIVATE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: ai-bot-server-secrets
+                  key: githubAppPrivateKey
+            - name: GITHUB_WEBHOOK_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: ai-bot-server-secrets
+                  key: githubWebhookSecret
+            - name: ANTHROPIC_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: ai-bot-server-secrets
+                  key: anthropicApiKey
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+          livenessProbe:
+            httpGet: { path: /healthz, port: 3000 }
+            initialDelaySeconds: 5
+          readinessProbe:
+            httpGet: { path: /healthz, port: 3000 }
+            initialDelaySeconds: 5
+          resources:
+            requests: { cpu: 100m, memory: 128Mi }
+            limits: { cpu: 500m, memory: 256Mi }
+      volumes:
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ai-bot-server-config
+  namespace: ai-bot
+data:
+  # Image built from the "runner" Dockerfile target, pushed to your registry.
+  runnerImage: ghcr.io/OWNER/ai-bot-runner:latest
+  # Comma-separated allowlist of GitHub orgs/users allowed to use the bot.
+  allowedOwners: "your-org"

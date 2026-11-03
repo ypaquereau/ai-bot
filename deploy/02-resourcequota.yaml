@@ -1,0 +1,18 @@
+# Caps the aggregate resources consumable by concurrent runner Jobs, so a
+# burst of triggered tasks cannot exhaust the cluster. Tune to the number of
+# concurrent tasks you want to allow (each Job requests ~250m CPU / 256Mi,
+# see src/server/job-spec.ts).
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: ai-agents-quota
+  namespace: ai-agents
+spec:
+  hard:
+    pods: "20"
+    requests.cpu: "10"
+    requests.memory: 10Gi
+    limits.cpu: "20"
+    limits.memory: 20Gi
+    count/jobs.batch: "20"
+    count/secrets: "40"

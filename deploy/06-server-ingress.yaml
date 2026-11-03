@@ -1,0 +1,27 @@
+# Exposes the webhook endpoint publicly so GitHub can reach it. Only needed
+# if you're using an Ingress controller; if you're exposing the server via a
+# Cloudflare Tunnel (or similar) instead, skip this file entirely — see the
+# README for that alternative.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ai-bot-server
+  namespace: ai-bot
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod # optional, if you use cert-manager
+spec:
+  ingressClassName: nginx # adjust to your cluster's ingress controller
+  tls:
+    - hosts: ["ai-bot.example.com"]
+      secretName: ai-bot-server-tls
+  rules:
+    - host: ai-bot.example.com
+      http:
+        paths:
+          - path: /webhook
+            pathType: Exact
+            backend:
+              service:
+                name: ai-bot-server
+                port:
+                  number: 80

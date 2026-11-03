@@ -1,0 +1,32 @@
+# Copy this file to .github/ai-bot.yml in any repository where you want to
+# tune the bot's behaviour. All fields are optional; anything you omit falls
+# back to the default in src/shared/config-schema.ts.
+
+# Claude model to use. Omit to use the runner's default.
+# model: claude-sonnet-5-5
+
+# Safety cap on the number of agent turns per task (plan or implement).
+maxTurns: 40
+
+# Open pull requests as drafts (recommended) or ready-for-review.
+draftPullRequest: true
+
+# Prefix used for branches created by the implement step.
+branchPrefix: ai-bot/
+
+# Base branch for pull requests. Omit to use the repository's default branch.
+# baseBranch: main
+
+# Shell commands the agent is allowed to run with the Bash tool during the
+# implement step (plan is always read-only, regardless of this list).
+# Each entry becomes a `Bash(<entry>)` tool-permission pattern.
+allowedBashCommands:
+  - "npm install"
+  - "npm test"
+  - "npm run build"
+  - "npm run lint"
+
+# Identity used for commits made by the bot.
+gitIdentity:
+  name: "ai-bot[bot]"
+  email: "ai-bot[bot]@users.noreply.github.com"

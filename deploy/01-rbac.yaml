@@ -1,0 +1,48 @@
+# Service account used by the webhook server (runs in the `ai-bot` namespace)
+# to create the ephemeral Job + Secret pair for each task, in the
+# `ai-agents` namespace.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ai-bot-server
+  namespace: ai-bot
+---
+# Minimal permissions: the server only ever creates/reads/deletes Jobs and
+# Secrets it owns, inside ai-agents. No access to any other resource type.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: ai-bot-server
+  namespace: ai-agents
+rules:
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["create", "get", "list", "watch", "delete"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["create", "get", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ai-bot-server
+  namespace: ai-agents
+subjects:
+  - kind: ServiceAccount
+    name: ai-bot-server
+    namespace: ai-bot
+roleRef:
+  kind: Role
+  name: ai-bot-server
+  apiGroup: rbac.authorization.k8s.io
+---
+# Service account used by runner pods. It is granted no RBAC permissions at
+# all: the runner never talks to the Kubernetes API, only to the GitHub API
+# (via its scoped installation token) and to the Claude Code CLI.
+# automountServiceAccountToken is also disabled on the pod spec itself.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ai-bot-runner
+  namespace: ai-agents
+automountServiceAccountToken: false

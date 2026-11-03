@@ -1,0 +1,93 @@
+# --- ai-agents namespace: runner pods -------------------------------------
+# Runner pods execute an LLM-driven agent against untrusted issue content, so
+# they get the tightest policy: deny all ingress, and on egress allow only
+# DNS plus HTTPS (443) to public internet addresses. RFC1918/loopback/
+# link-local ranges are explicitly excluded so a compromised/confused agent
+# cannot pivot into the cluster network (other pods, the node, the metadata
+# endpoint, etc).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: deny-all-ingress
+  namespace: ai-agents
+spec:
+  podSelector: {}
+  policyTypes: ["Ingress"]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: runner-egress
+  namespace: ai-agents
+spec:
+  podSelector:
+    matchLabels:
+      app: ai-bot-runner
+  policyTypes: ["Egress"]
+  egress:
+    # DNS resolution via kube-dns/CoreDNS in kube-system.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - { protocol: UDP, port: 53 }
+        - { protocol: TCP, port: 53 }
+    # HTTPS to the public internet only (api.github.com, github.com for git
+    # clone/push, the Anthropic API, package registries, ...). Private and
+    # link-local ranges are excluded.
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+              - 169.254.0.0/16
+              - 127.0.0.0/8
+              - 100.64.0.0/10
+      ports:
+        - { protocol: TCP, port: 443 }
+---
+# --- ai-bot namespace: webhook server --------------------------------------
+# The server receives inbound webhooks (via Ingress) and needs egress to the
+# GitHub API plus the Kubernetes API server (which usually lives on a
+# private/cluster IP, so it cannot be covered by the "no private ranges"
+# rule above).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: server-ingress
+  namespace: ai-bot
+spec:
+  podSelector:
+    matchLabels:
+      app: ai-bot-server
+  policyTypes: ["Ingress"]
+  ingress:
+    # Narrow this to your ingress controller's namespace/labels if possible.
+    - ports:
+        - { protocol: TCP, port: 3000 }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: server-egress
+  namespace: ai-bot
+spec:
+  podSelector:
+    matchLabels:
+      app: ai-bot-server
+  policyTypes: ["Egress"]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - { protocol: UDP, port: 53 }
+        - { protocol: TCP, port: 53 }
+    # Kubernetes API server (private cluster IP) to create Jobs/Secrets.
+    - ports:
+        - { protocol: TCP, port: 443 }
+        - { protocol: TCP, port: 6443 }
