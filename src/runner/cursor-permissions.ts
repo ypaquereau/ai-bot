@@ -29,6 +29,18 @@ const PLAN_READONLY_SHELL = ["Shell(ls)", "Shell(git)", "Shell(cat)", "Shell(gre
  */
 export const PLAN_OUTPUT_FILENAME = "ai-bot-plan.md";
 
+/**
+ * Même constat en mode `implement` : le skill d'exécution de l'agent
+ * (executing-plans) termine sa réponse par une narration de processus
+ * conversationnelle ("dis-moi si je continue...") adressée à un humain
+ * absent en headless, pas par un résumé fini utilisable comme corps de
+ * pull request. On lui demande explicitement (voir implement.ts) d'écrire
+ * ce résumé dans ce fichier plutôt que de se fier au texte de réponse.
+ * Contrairement à PLAN_OUTPUT_FILENAME, aucune règle de permission dédiée
+ * n'est nécessaire : `implement` a déjà Write(**).
+ */
+export const SUMMARY_OUTPUT_FILENAME = "ai-bot-summary.md";
+
 function shellRuleFor(command: string): string {
   const [head, ...rest] = command.trim().split(/\s+/);
   if (!head) {
