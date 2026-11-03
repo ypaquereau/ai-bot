@@ -22,7 +22,6 @@ import { logger } from "../shared/logger.js";
 function buildImplementPrompt(title: string, body: string, plan: string): string {
   return [
     "You are an engineering agent implementing the approved plan below in the cloned repo (current directory).",
-    "Use only the allowed tools and commands. Committing and pushing are handled by another process: you just modify the files.",
     "This run is fully automated, with nobody to respond to you: do not ask any question, do not request confirmation, do not propose a next step for approval. Carry the plan through to completion yourself.",
     "",
     `Issue title: ${title}`,
@@ -32,18 +31,29 @@ function buildImplementPrompt(title: string, body: string, plan: string): string
     "Approved plan to implement:",
     plan || "(no plan found, implement the request above directly, with care)",
     "",
-    `Once implementation is done, write a finished summary to a single file named exactly "${SUMMARY_OUTPUT_FILENAME}" at the repo root, meant for the pull request description: what changed and why, in 3-4 sentences max. No process narration ("I will do...", "next step..."), no question, just the final result.`,
+    "Mandatory steps, in order:",
+    "1. Implement the plan using only the allowed tools and commands. Committing and pushing are handled by another process: you just modify the files.",
+    `2. REQUIRED FINAL STEP — do not end your turn before doing this: write a finished summary to a single file named exactly "${SUMMARY_OUTPUT_FILENAME}" at the repo root, meant for the pull request description: what changed and why, in 3-4 sentences max. No process narration ("I will do...", "next step..."), no question, just the final result.`,
   ].join("\n");
 }
 
-/** Reads back the summary the agent wrote to SUMMARY_OUTPUT_FILENAME; falls back to the response text if the file is absent. */
+/**
+ * Reads back the summary the agent wrote to SUMMARY_OUTPUT_FILENAME; falls
+ * back to the response text if the file is absent (logged as a warning so
+ * it's visible in monitoring).
+ */
 async function readSummaryOutput(repoDir: string, fallback: string): Promise<string> {
   try {
     const content = await readFile(join(repoDir, SUMMARY_OUTPUT_FILENAME), "utf8");
-    return content.trim().length > 0 ? content : fallback;
+    if (content.trim().length > 0) {
+      return content;
+    }
   } catch {
-    return fallback;
+    // Falls through to the warning + fallback below.
   }
+
+  logger.warn(`agent did not write ${SUMMARY_OUTPUT_FILENAME}, falling back to its response text`);
+  return fallback;
 }
 
 async function getDefaultBranch(octokit: Octokit, owner: string, repo: string): Promise<string> {
