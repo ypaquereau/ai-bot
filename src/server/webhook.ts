@@ -59,7 +59,7 @@ async function handleIssueComment(deliveryId: string, payload: IssueCommentCreat
 
   if (isBotSender(payload.sender)) return;
   if (!assertAllowedOwner(owner)) return;
-  if (!("pull_request" in payload.issue) || payload.issue.pull_request) return; // PR comments ignored
+  if (payload.issue.pull_request) return; // PR comments ignored
 
   const hasPlanReady = payload.issue.labels?.some((l) => l.name === STATE_LABELS.planReady) ?? false;
   if (!hasPlanReady) return;
