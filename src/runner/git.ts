@@ -14,15 +14,15 @@ function run(
     child.on("error", reject);
     child.on("exit", (code) => {
       if (code === 0) resolve();
-      else reject(new Error(`${command} ${args.join(" ")} a échoué avec le code ${code}`));
+      else reject(new Error(`${command} ${args.join(" ")} exited with code ${code}`));
     });
   });
 }
 
 /**
- * Écrit un script GIT_ASKPASS qui lit le token depuis le fichier monté par
- * k8s. Le token n'est ainsi jamais passé en argument de commande ni exposé
- * dans l'environnement du process `agent` (qui ne reçoit pas GIT_ASKPASS).
+ * Writes a GIT_ASKPASS script that reads the token from the file mounted by
+ * k8s. The token is thus never passed as a command argument nor exposed in
+ * the `agent` process's environment (which doesn't receive GIT_ASKPASS).
  */
 async function writeAskPassScript(): Promise<string> {
   const scriptPath = join(runnerEnv.workspace, ".git-askpass.sh");
@@ -53,9 +53,9 @@ export async function cloneRepo(owner: string, repo: string, destDir: string): P
 }
 
 /**
- * Exclut `pattern` du dépôt via `.git/info/exclude` (jamais commité, local
- * au clone). Utilisé pour que `.cursor/cli.json`, écrit par le runner pour
- * piloter les permissions de l'agent, n'atterrisse jamais dans un commit.
+ * Excludes `pattern` from the repo via `.git/info/exclude` (never
+ * committed, local to the clone). Used so that `.cursor/cli.json`, written
+ * by the runner to drive the agent's permissions, never ends up in a commit.
  */
 export async function excludeLocalPath(repoDir: string, pattern: string): Promise<void> {
   await appendFile(join(repoDir, ".git", "info", "exclude"), `\n${pattern}\n`);
@@ -78,7 +78,7 @@ export async function hasChanges(repoDir: string): Promise<boolean> {
     child.on("error", reject);
     child.on("exit", (code) => {
       if (code === 0) resolve(output.trim().length > 0);
-      else reject(new Error(`git status a échoué avec le code ${code}`));
+      else reject(new Error(`git status exited with code ${code}`));
     });
   });
 }

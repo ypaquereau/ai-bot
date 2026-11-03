@@ -1,10 +1,10 @@
-/** Labels qui déclenchent une action côté serveur. */
+/** Labels that trigger an action server-side. */
 export const TRIGGER_LABELS = {
   plan: "ai:plan",
   approved: "ai:approved",
 } as const;
 
-/** Labels d'état, posés uniquement par le runner. */
+/** State labels, applied only by the runner. */
 export const STATE_LABELS = {
   planning: "ai:planning",
   planReady: "ai:plan-ready",

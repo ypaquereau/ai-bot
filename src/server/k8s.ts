@@ -10,7 +10,7 @@ export function jobLabelSelector(owner: string, repo: string, issueNumber: numbe
   return `app=ai-bot-runner,owner=${owner},repo=${repo},issue=${issueNumber}`;
 }
 
-/** Un Job est considéré "en vol" tant qu'il n'a pas de date de complétion. */
+/** A Job is considered "in flight" as long as it has no completion time. */
 export function isJobActive(status: { completionTime?: Date | string } | undefined): boolean {
   return !status?.completionTime;
 }

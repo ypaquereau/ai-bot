@@ -1,8 +1,8 @@
 export type TaskType = "plan" | "implement";
 
 /**
- * Description d'une tâche à exécuter par un pod runner.
- * Sérialisée dans les variables d'environnement du Job k8s.
+ * Description of a task to run on a runner pod.
+ * Serialized into the k8s Job's environment variables.
  */
 export interface AgentTask {
   readonly task: TaskType;
@@ -10,9 +10,9 @@ export interface AgentTask {
   readonly repo: string;
   readonly issueNumber: number;
   readonly installationId: number;
-  /** Identifiant de livraison du webhook ayant déclenché la tâche (traçabilité + dédoublonnage). */
+  /** Delivery id of the webhook that triggered the task (traceability + dedup). */
   readonly deliveryId: string;
-  /** true si la tâche est une re-planification demandée par commentaire. */
+  /** true if the task is a re-plan requested via a comment. */
   readonly isReplan: boolean;
 }
 
@@ -21,7 +21,7 @@ export interface GitIdentity {
   readonly email: string;
 }
 
-/** Schéma de `.github/ai-bot.yml`, tel que lu depuis le dépôt cible. */
+/** Schema of `.github/ai-bot.yml`, as read from the target repo. */
 export interface BotConfig {
   readonly model?: string;
   readonly draftPullRequest: boolean;

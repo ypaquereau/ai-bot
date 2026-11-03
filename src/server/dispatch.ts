@@ -7,14 +7,14 @@ import { logger } from "../shared/logger.js";
 import type { AgentTask } from "../shared/types.js";
 
 /**
- * Crée le Job runner pour la tâche donnée, après vérification de
- * dédoublonnage. Le Secret contenant le token d'installation est créé
- * *après* le Job et rattaché à celui-ci via ownerReference, afin d'être
- * garbage-collecté automatiquement quand le Job expire (ttlSecondsAfterFinished).
+ * Creates the runner Job for the given task, after a deduplication check.
+ * The Secret holding the installation token is created *after* the Job and
+ * attached to it via ownerReference, so it's garbage-collected
+ * automatically once the Job expires (ttlSecondsAfterFinished).
  */
 export async function dispatchAgentTask(task: AgentTask): Promise<"dispatched" | "duplicate"> {
   if (await hasActiveJobForIssue(task.owner, task.repo, task.issueNumber)) {
-    logger.info("tâche ignorée: un job est déjà en cours pour cette issue", {
+    logger.info("task ignored: a job is already in flight for this issue", {
       owner: task.owner,
       repo: task.repo,
       issueNumber: task.issueNumber,
@@ -33,7 +33,7 @@ export async function dispatchAgentTask(task: AgentTask): Promise<"dispatched" |
   );
 
   if (!createdJob.metadata?.uid) {
-    throw new Error(`Job ${name} créé sans UID, impossible de rattacher le Secret`);
+    throw new Error(`Job ${name} created without a UID, cannot attach the Secret`);
   }
 
   await coreApi.createNamespacedSecret(
@@ -48,7 +48,7 @@ export async function dispatchAgentTask(task: AgentTask): Promise<"dispatched" |
     }),
   );
 
-  logger.info("job runner créé", {
+  logger.info("runner job created", {
     job: name,
     task: task.task,
     owner: task.owner,

@@ -3,7 +3,7 @@ import { Octokit } from "@octokit/rest";
 import { runnerEnv } from "./env.js";
 import { STATE_LABELS, TRIGGER_LABELS } from "../shared/labels.js";
 
-/** Token d'installation à portée réduite (un seul dépôt), lu depuis le volume monté en lecture seule. */
+/** Repo-scoped installation token, read from the read-only mounted volume. */
 export function readInstallationToken(): string {
   return readFileSync(runnerEnv.githubTokenFile, "utf8").trim();
 }
@@ -28,7 +28,7 @@ export async function transitionLabels(
     try {
       await octokit.issues.removeLabel({ owner, repo, issue_number: issueNumber, name });
     } catch (error) {
-      // 404 si le label n'était pas posé : pas bloquant.
+      // 404 if the label wasn't set: not fatal.
       if (!isNotFound(error)) throw error;
     }
   }
@@ -51,7 +51,7 @@ export async function postComment(
   await octokit.issues.createComment({ owner, repo, issue_number: issueNumber, body });
 }
 
-/** Marque la tâche en échec : commentaire explicatif + label ai:failed. */
+/** Marks the task as failed: explanatory comment + ai:failed label. */
 export async function markFailed(
   octokit: Octokit,
   owner: string,
@@ -65,7 +65,7 @@ export async function markFailed(
     owner,
     repo,
     issueNumber,
-    `⚠️ L'agent IA a échoué sur cette tâche.\n\n\`\`\`\n${reason}\n\`\`\``,
+    `⚠️ The AI agent failed on this task.\n\n\`\`\`\n${reason}\n\`\`\``,
   );
   await transitionLabels(octokit, owner, repo, issueNumber, {
     add: [STATE_LABELS.failed],

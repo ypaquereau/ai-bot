@@ -14,11 +14,10 @@ export interface AgentRunResult {
 }
 
 /**
- * Environnement volontairement restreint passé au process `agent` : ni le
- * token GitHub ni GIT_ASKPASS n'y figurent, pour que l'agent ne puisse jamais
- * lire ou exfiltrer le token (le push se fait avant/après l'appel, depuis
- * notre propre code). CURSOR_API_KEY, lui, reste présent : l'agent en a
- * besoin pour s'authentifier.
+ * Deliberately restricted environment passed to the `agent` process: neither
+ * the GitHub token nor GIT_ASKPASS appear in it, so the agent can never read
+ * or exfiltrate the token (the push happens before/after the call, from our
+ * own code). CURSOR_API_KEY stays present: the agent needs it to authenticate.
  */
 function restrictedEnv(): NodeJS.ProcessEnv {
   const { GITHUB_TOKEN_FILE, GIT_ASKPASS, ...rest } = process.env;
@@ -26,37 +25,34 @@ function restrictedEnv(): NodeJS.ProcessEnv {
 }
 
 /**
- * Lance la CLI Cursor (`agent -p`) en mode headless.
+ * Runs the Cursor CLI (`agent -p`) in headless mode.
  *
- * - `plan` : pas de `--mode plan` ni de `--force`. `--mode plan` s'est avéré
- *   taillé pour un usage interactif : en headless, il s'arrête après avoir
- *   annoncé son intention au lieu de produire l'analyse complète attendue
- *   dans le commentaire GitHub. Le mode agent par défaut, toujours sans
- *   `--force`, documente le même comportement en écriture ("ne fait que
- *   proposer des changements, n'écrit jamais sur disque") tout en rendant
- *   une réponse texte complète — la planification reste donc en lecture
- *   seule même si `.cursor/cli.json` (écrit par
- *   src/runner/cursor-permissions.ts) autorise quelques commandes de lecture.
- * - `implement` : `--force` autorise les actions non explicitement
- *   refusées à s'exécuter sans confirmation interactive (qui bloquerait
- *   indéfiniment en headless). Dans ce mode, la vraie frontière de
- *   sécurité est la liste `permissions.deny` de `.cursor/cli.json`, pas la
- *   liste `allow` : `--force` la rend non bloquante pour tout ce qui n'est
- *   pas explicitement refusé.
- * - `--trust` : nécessaire en headless car chaque pod clone un dépôt neuf,
- *   que la CLI considérerait sinon comme un espace de travail non
- *   approuvé et demanderait une confirmation interactive impossible ici.
- * - `--output-format stream-json` plutôt que `json` : avec `json`, le champ
- *   `.result` ne contient que le tout dernier message de l'agent — or les
- *   skills internes qu'il invoque (writing-plans, etc.) produisent souvent
- *   plusieurs segments de texte avant de conclure par une phrase de
- *   narration courte ("je finalise le plan"), sans jamais livrer le
- *   contenu dans ce dernier segment. `stream-json` expose chaque évènement
- *   NDJSON, ce qui permet de concaténer tous les segments `assistant`
- *   plutôt que de ne garder que le dernier. (Pour le mode `plan`, le vrai
- *   contenu du plan est de toute façon récupéré séparément en relisant
- *   PLAN_OUTPUT_FILENAME, voir plan.ts — ce flux sert surtout de filet pour
- *   le résumé de `implement`.)
+ * - `plan`: no `--mode plan` and no `--force`. `--mode plan` turned out to be
+ *   built for interactive use: in headless mode it stops after announcing
+ *   its intent instead of producing the full analysis expected in the
+ *   GitHub comment. The default agent mode, still without `--force`,
+ *   documents the same write behavior ("only proposes changes, never
+ *   writes to disk") while returning a complete text response — planning
+ *   therefore stays read-only even though `.cursor/cli.json` (written by
+ *   src/runner/cursor-permissions.ts) allows a few read commands.
+ * - `implement`: `--force` lets actions that aren't explicitly denied run
+ *   without an interactive confirmation (which would block forever in
+ *   headless mode). In this mode the real security boundary is
+ *   `.cursor/cli.json`'s `permissions.deny` list, not `allow`: `--force`
+ *   makes the allow list non-blocking for everything else.
+ * - `--trust`: needed in headless mode because each pod clones a fresh
+ *   repo, which the CLI would otherwise treat as an untrusted workspace
+ *   and prompt for confirmation — impossible here.
+ * - `--output-format stream-json` instead of `json`: with `json`, the
+ *   `.result` field only contains the agent's very last message — but the
+ *   internal skills it invokes (writing-plans, etc.) often produce several
+ *   text segments before wrapping up with a short narration sentence ("I'm
+ *   finalizing the plan"), never delivering the actual content in that
+ *   last segment. `stream-json` exposes every NDJSON event, which lets us
+ *   concatenate all `assistant` segments instead of keeping only the last
+ *   one. (For `plan` mode, the real plan content is fetched separately by
+ *   re-reading PLAN_OUTPUT_FILENAME, see plan.ts — this stream mostly
+ *   serves as a safety net for `implement`'s summary.)
  */
 export function runAgent(options: AgentRunOptions): Promise<AgentRunResult> {
   const args = ["-p", "--output-format", "stream-json", "--trust", "--workspace", options.cwd];
@@ -81,7 +77,7 @@ export function runAgent(options: AgentRunOptions): Promise<AgentRunResult> {
     child.on("error", reject);
     child.on("exit", (code) => {
       if (code !== 0) {
-        reject(new Error(`agent a échoué avec le code ${code}: ${stderr || stdout}`));
+        reject(new Error(`agent exited with code ${code}: ${stderr || stdout}`));
         return;
       }
       resolve(parseAgentOutput(stdout));
@@ -104,10 +100,10 @@ interface ResultEvent {
 type StreamEvent = AssistantEvent | ResultEvent | { readonly type: string };
 
 /**
- * Reconstruit le texte de la réponse à partir du flux NDJSON de
- * `--output-format stream-json` : concatène tous les segments de texte
- * `assistant` (pas seulement le dernier), puis retombe sur le `result`
- * final, puis sur la sortie brute.
+ * Reconstructs the response text from the NDJSON stream of
+ * `--output-format stream-json`: concatenates every `assistant` text
+ * segment (not just the last one), then falls back to the final `result`,
+ * then to the raw output.
  */
 function parseAgentOutput(stdout: string): AgentRunResult {
   const events: StreamEvent[] = [];
@@ -116,7 +112,7 @@ function parseAgentOutput(stdout: string): AgentRunResult {
     try {
       events.push(JSON.parse(line) as StreamEvent);
     } catch {
-      // ligne non-JSON (ex: sortie d'erreur mélangée) : ignorée.
+      // Non-JSON line (e.g. stray stderr output mixed in): ignored.
     }
   }
 

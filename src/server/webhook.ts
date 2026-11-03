@@ -19,7 +19,7 @@ webhooks.on("issue_comment.created", async ({ id, payload }) => {
 });
 
 webhooks.onError((event) => {
-  logger.error("échec du traitement d'un webhook", { errors: event.errors.map(String) });
+  logger.error("webhook processing failed", { errors: event.errors.map(String) });
 });
 
 async function handleIssuesLabeled(deliveryId: string, payload: IssuesLabeledEvent): Promise<void> {
@@ -29,7 +29,7 @@ async function handleIssuesLabeled(deliveryId: string, payload: IssuesLabeledEve
 
   if (isBotSender(payload.sender)) return;
   if (!assertAllowedOwner(owner)) {
-    logger.warn("owner non autorisé, webhook ignoré", { owner, repo });
+    logger.warn("owner not allowed, webhook ignored", { owner, repo });
     return;
   }
 
@@ -59,7 +59,7 @@ async function handleIssueComment(deliveryId: string, payload: IssueCommentCreat
 
   if (isBotSender(payload.sender)) return;
   if (!assertAllowedOwner(owner)) return;
-  if (!("pull_request" in payload.issue) || payload.issue.pull_request) return; // commentaires de PR ignorés
+  if (!("pull_request" in payload.issue) || payload.issue.pull_request) return; // PR comments ignored
 
   const hasPlanReady = payload.issue.labels?.some((l) => l.name === STATE_LABELS.planReady) ?? false;
   if (!hasPlanReady) return;
@@ -68,7 +68,7 @@ async function handleIssueComment(deliveryId: string, payload: IssueCommentCreat
   const octokit = await installationOctokit(installationId);
   const authorized = await hasWriteAccess(octokit, owner, repo, payload.comment.user.login);
   if (!authorized) {
-    logger.info("commentaire ignoré: auteur sans droit write", {
+    logger.info("comment ignored: author lacks write access", {
       owner,
       repo,
       user: payload.comment.user.login,

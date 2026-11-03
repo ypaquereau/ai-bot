@@ -2,7 +2,7 @@
   "name": "ai-bot",
   "version": "0.1.0",
   "private": true,
-  "description": "GitHub App qui pilote un agent IA (Cursor CLI) a partir des labels d'une issue",
+  "description": "GitHub App that drives an AI agent (Cursor CLI) from issue labels",
   "type": "module",
   "engines": {
     "node": ">=22"

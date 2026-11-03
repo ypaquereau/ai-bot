@@ -12,8 +12,8 @@ export const DEFAULT_CONFIG: BotConfig = {
 };
 
 /**
- * Parse `.github/ai-bot.yml`. Les champs absents retombent sur DEFAULT_CONFIG ;
- * un fichier absent ou vide produit la config par défaut.
+ * Parses `.github/ai-bot.yml`. Missing fields fall back to DEFAULT_CONFIG;
+ * an absent or empty file produces the default config.
  */
 export function parseBotConfig(yamlText: string | undefined): BotConfig {
   if (!yamlText || yamlText.trim().length === 0) {

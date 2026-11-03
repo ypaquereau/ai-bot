@@ -8,9 +8,9 @@ const appAuth = createAppAuth({
 });
 
 /**
- * Crée un token d'installation à durée de vie courte (~1h), limité au seul
- * dépôt `owner/repo`. Ce token est destiné au Secret éphémère du Job, jamais
- * réutilisé ensuite par le serveur.
+ * Creates a short-lived installation token (~1h), scoped to the single
+ * `owner/repo` repository. This token is meant for the Job's ephemeral
+ * Secret, never reused afterwards by the server.
  */
 export async function mintRepoScopedInstallationToken(
   installationId: number,
@@ -24,17 +24,17 @@ export async function mintRepoScopedInstallationToken(
   });
 
   if (!auth.token) {
-    throw new Error(`Échec de la création du token d'installation pour ${owner}/${repo}`);
+    throw new Error(`Failed to create an installation token for ${owner}/${repo}`);
   }
 
   return { token: auth.token, expiresAt: auth.expiresAt };
 }
 
-/** Client Octokit authentifié en tant qu'installation, pour les vérifications côté serveur (permissions, etc). */
+/** Octokit client authenticated as the installation, for server-side checks (permissions, etc). */
 export async function installationOctokit(installationId: number): Promise<Octokit> {
   const auth = await appAuth({ type: "installation", installationId });
   if (!auth.token) {
-    throw new Error(`Échec de l'authentification de l'installation ${installationId}`);
+    throw new Error(`Failed to authenticate installation ${installationId}`);
   }
   return new Octokit({ auth: auth.token, baseUrl: serverEnv.githubApiUrl });
 }

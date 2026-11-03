@@ -1,7 +1,7 @@
 function required(name: string): string {
   const value = process.env[name];
   if (!value) {
-    throw new Error(`Variable d'environnement manquante: ${name}`);
+    throw new Error(`Missing environment variable: ${name}`);
   }
   return value;
 }
@@ -17,10 +17,10 @@ export const serverEnv = {
   githubAppPrivateKey: required("GITHUB_APP_PRIVATE_KEY"),
   githubWebhookSecret: required("GITHUB_WEBHOOK_SECRET"),
   githubApiUrl: optional("GITHUB_API_URL", "https://api.github.com"),
-  /** Propagé dans le Secret éphémère de chaque Job, pour que la CLI Cursor (`agent`) puisse s'authentifier. */
+  /** Propagated into each Job's ephemeral Secret, so the Cursor CLI (`agent`) can authenticate. */
   cursorApiKey: required("CURSOR_API_KEY"),
 
-  /** Owners GitHub (orgs/users) autorisés à utiliser le bot, séparés par des virgules. */
+  /** GitHub owners (orgs/users) allowed to use the bot, comma-separated. */
   allowedOwners: optional("ALLOWED_OWNERS", "")
     .split(",")
     .map((s) => s.trim().toLowerCase())

@@ -3,9 +3,9 @@ import { batchApi, isJobActive, jobLabelSelector } from "./k8s.js";
 import { logger } from "../shared/logger.js";
 
 /**
- * true si un Job runner est déjà en cours (non terminé) pour cette issue,
- * quelle que soit la tâche (plan ou implement) : on évite ainsi deux agents
- * concurrents sur la même issue.
+ * true if a runner Job is already in flight (not finished) for this issue,
+ * regardless of task (plan or implement): this avoids two concurrent
+ * agents on the same issue.
  */
 export async function hasActiveJobForIssue(
   owner: string,
@@ -26,14 +26,14 @@ export async function hasActiveJobForIssue(
 
     return body.items.some((job) => isJobActive(job.status));
   } catch (error) {
-    logger.error("échec de la vérification de dédoublonnage, on bloque par prudence", {
+    logger.error("deduplication check failed, blocking out of caution", {
       owner,
       repo,
       issueNumber,
       error: String(error),
     });
-    // En cas de doute (API k8s indisponible), on préfère ne pas lancer de job
-    // en double plutôt que de risquer deux agents concurrents.
+    // When in doubt (k8s API unavailable), we'd rather not launch a
+    // duplicate job than risk two concurrent agents.
     return true;
   }
 }

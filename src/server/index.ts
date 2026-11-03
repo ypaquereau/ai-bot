@@ -16,20 +16,20 @@ app.post("/webhook", async (c) => {
   const rawBody = await c.req.text();
 
   if (!signature || !deliveryId || !eventName) {
-    return c.text("en-têtes manquants", 400);
+    return c.text("missing headers", 400);
   }
 
   const valid = await webhooks.verify(rawBody, signature);
   if (!valid) {
-    logger.warn("signature de webhook invalide", { deliveryId, eventName });
-    return c.text("signature invalide", 401);
+    logger.warn("invalid webhook signature", { deliveryId, eventName });
+    return c.text("invalid signature", 401);
   }
 
   const payload = JSON.parse(rawBody) as unknown;
 
-  // On répond tout de suite ; la création du Job k8s (qui implique un appel à
-  // l'API GitHub pour le token d'installation puis à l'API k8s) se poursuit
-  // en arrière-plan pour rester sous le délai de timeout des webhooks GitHub.
+  // We respond right away; creating the k8s Job (which involves a call to
+  // the GitHub API for the installation token, then to the k8s API)
+  // continues in the background to stay under GitHub's webhook timeout.
   const event = {
     id: deliveryId,
     name: eventName,
@@ -38,7 +38,7 @@ app.post("/webhook", async (c) => {
 
   queueMicrotask(() => {
     webhooks.receive(event).catch((error) => {
-      logger.error("échec du traitement asynchrone du webhook", {
+      logger.error("async webhook processing failed", {
         deliveryId,
         eventName,
         error: String(error),
@@ -50,5 +50,5 @@ app.post("/webhook", async (c) => {
 });
 
 serve({ fetch: app.fetch, port: serverEnv.port }, (info) => {
-  logger.info("serveur webhook démarré", { port: info.port });
+  logger.info("webhook server started", { port: info.port });
 });

@@ -21,22 +21,22 @@ import { logger } from "../shared/logger.js";
 
 function buildImplementPrompt(title: string, body: string, plan: string): string {
   return [
-    "Tu es un agent d'ingénierie chargé d'implémenter le plan validé ci-dessous dans le dépôt cloné (répertoire courant).",
-    "Utilise uniquement les outils et commandes autorisés. Commits et push sont gérés par un autre processus : toi, modifie juste les fichiers.",
-    "Ce run est entièrement automatisé, sans personne pour te répondre : ne pose aucune question, ne demande aucune confirmation, ne propose pas d'étape suivante à valider. Va jusqu'au bout du plan toi-même.",
+    "You are an engineering agent implementing the approved plan below in the cloned repo (current directory).",
+    "Use only the allowed tools and commands. Committing and pushing are handled by another process: you just modify the files.",
+    "This run is fully automated, with nobody to respond to you: do not ask any question, do not request confirmation, do not propose a next step for approval. Carry the plan through to completion yourself.",
     "",
-    `Titre de l'issue: ${title}`,
-    "Description originale:",
-    body || "(aucune description)",
+    `Issue title: ${title}`,
+    "Original description:",
+    body || "(no description)",
     "",
-    "Plan approuvé à implémenter:",
-    plan || "(aucun plan trouvé, implémente directement la demande ci-dessus avec prudence)",
+    "Approved plan to implement:",
+    plan || "(no plan found, implement the request above directly, with care)",
     "",
-    `Une fois l'implémentation terminée, écris dans un unique fichier nommé exactement "${SUMMARY_OUTPUT_FILENAME}" à la racine du dépôt un résumé fini, destiné à la description de la pull request : ce qui a changé et pourquoi, en 3-4 phrases maximum. Pas de narration de processus ("je vais faire...", "étape suivante..."), pas de question, juste le résultat final.`,
+    `Once implementation is done, write a finished summary to a single file named exactly "${SUMMARY_OUTPUT_FILENAME}" at the repo root, meant for the pull request description: what changed and why, in 3-4 sentences max. No process narration ("I will do...", "next step..."), no question, just the final result.`,
   ].join("\n");
 }
 
-/** Relit le résumé écrit par l'agent dans SUMMARY_OUTPUT_FILENAME ; retombe sur le texte de la réponse si le fichier est absent. */
+/** Reads back the summary the agent wrote to SUMMARY_OUTPUT_FILENAME; falls back to the response text if the file is absent. */
 async function readSummaryOutput(repoDir: string, fallback: string): Promise<string> {
   try {
     const content = await readFile(join(repoDir, SUMMARY_OUTPUT_FILENAME), "utf8");
@@ -81,7 +81,7 @@ export async function runImplementTask(): Promise<void> {
     });
     const planComment = findLatestPlanComment(comments);
 
-    logger.info("implémentation du plan", { owner, repo, issueNumber });
+    logger.info("implementing the plan", { owner, repo, issueNumber });
     const result = await runAgent({
       cwd: repoDir,
       prompt: buildImplementPrompt(issue.title, issue.body ?? "", planComment?.body ?? ""),
@@ -90,12 +90,12 @@ export async function runImplementTask(): Promise<void> {
     });
 
     if (!(await hasChanges(repoDir))) {
-      throw new Error("L'agent n'a produit aucune modification de fichier.");
+      throw new Error("The agent did not produce any file change.");
     }
 
     const summary = await readSummaryOutput(repoDir, result.text);
 
-    await commitAll(repoDir, `ai-bot: implémente la demande de l'issue #${issueNumber}`);
+    await commitAll(repoDir, `ai-bot: implement the request from issue #${issueNumber}`);
     await pushBranch(repoDir, branch);
 
     const baseBranch = config.baseBranch ?? (await getDefaultBranch(octokit, owner, repo));
@@ -109,7 +109,7 @@ export async function runImplementTask(): Promise<void> {
       body: `Closes #${issueNumber}\n\n${summary}`,
     });
 
-    await postComment(octokit, owner, repo, issueNumber, `✅ Pull request ouverte : ${pr.html_url}`);
+    await postComment(octokit, owner, repo, issueNumber, `✅ Pull request opened: ${pr.html_url}`);
     await transitionLabels(octokit, owner, repo, issueNumber, {
       add: [STATE_LABELS.prOpened],
       remove: [STATE_LABELS.implementing, STATE_LABELS.planReady],

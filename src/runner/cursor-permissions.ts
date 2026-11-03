@@ -3,10 +3,10 @@ import { join } from "node:path";
 import type { AgentTaskMode } from "./agent.js";
 
 /**
- * Règles refusées quelle que soit la tâche : secrets et clés privées, qu'on
- * ne veut jamais voir lus (et exfiltrés dans la réponse de l'agent) ni
- * écrasés. Ce sont elles qui comptent vraiment en mode `implement`, où
- * `--force` rend la liste `allow` non bloquante pour tout le reste.
+ * Rules denied regardless of task: secrets and private keys, which we never
+ * want read (and exfiltrated into the agent's response) or overwritten.
+ * These are the ones that actually matter in `implement` mode, where
+ * `--force` makes the `allow` list non-blocking for everything else.
  */
 const SECRET_DENY_RULES = [
   "Read(.env*)",
@@ -16,43 +16,43 @@ const SECRET_DENY_RULES = [
   "Write(**/*.pem)",
 ] as const;
 
-/** Commandes de lecture sans risque, utiles à l'agent pour explorer le code pendant la planification. */
+/** Safe read-only commands, useful for the agent to explore the code while planning. */
 const PLAN_READONLY_SHELL = ["Shell(ls)", "Shell(git)", "Shell(cat)", "Shell(grep)", "Shell(find)"] as const;
 
 /**
- * Nom du fichier scratch où l'agent écrit son plan en mode `plan`. Les
- * skills internes de l'agent (writing-plans, ...) produisent leur contenu
- * substantiel via une écriture de fichier plutôt que dans leur réponse
- * finale (voir src/runner/agent.ts) ; plutôt que de bloquer toute écriture
- * et perdre ce contenu, on l'autorise explicitement pour ce seul fichier,
- * que le runner relit ensuite (voir plan.ts) et exclut du dépôt git.
+ * Name of the scratch file the agent writes its plan to in `plan` mode. The
+ * agent's internal skills (writing-plans, ...) deliver their substantial
+ * content via a file write rather than in their final response (see
+ * src/runner/agent.ts); rather than block all writes and lose that content,
+ * it's explicitly allowed for this one file, which the runner reads back
+ * afterwards (see plan.ts) and excludes from the git repo.
  */
 export const PLAN_OUTPUT_FILENAME = "ai-bot-plan.md";
 
 /**
- * Même constat en mode `implement` : le skill d'exécution de l'agent
- * (executing-plans) termine sa réponse par une narration de processus
- * conversationnelle ("dis-moi si je continue...") adressée à un humain
- * absent en headless, pas par un résumé fini utilisable comme corps de
- * pull request. On lui demande explicitement (voir implement.ts) d'écrire
- * ce résumé dans ce fichier plutôt que de se fier au texte de réponse.
- * Contrairement à PLAN_OUTPUT_FILENAME, aucune règle de permission dédiée
- * n'est nécessaire : `implement` a déjà Write(**).
+ * Same observation in `implement` mode: the agent's execution skill
+ * (executing-plans) ends its response with conversational process
+ * narration ("tell me if I should continue...") addressed to a human who
+ * isn't there in headless mode, not a finished summary usable as a pull
+ * request body. It's explicitly asked (see implement.ts) to write that
+ * summary to this file instead of relying on the response text. Unlike
+ * PLAN_OUTPUT_FILENAME, no dedicated permission rule is needed: `implement`
+ * already has Write(**).
  */
 export const SUMMARY_OUTPUT_FILENAME = "ai-bot-summary.md";
 
 function shellRuleFor(command: string): string {
   const [head, ...rest] = command.trim().split(/\s+/);
   if (!head) {
-    throw new Error("commande vide dans allowedBashCommands");
+    throw new Error("empty command in allowedBashCommands");
   }
   return rest.length > 0 ? `Shell(${head}:${rest.join(" ")}*)` : `Shell(${head})`;
 }
 
 /**
- * Écrit `.cursor/cli.json` (permissions au niveau projet, lues par `agent`)
- * dans le dépôt cloné. Appeler `excludeLocalPath` avant tout commit pour ne
- * pas que ce fichier soit capturé par `git add -A`.
+ * Writes `.cursor/cli.json` (project-level permissions, read by `agent`)
+ * into the cloned repo. Call `excludeLocalPath` before any commit so this
+ * file is never picked up by `git add -A`.
  */
 export async function writeCursorPermissions(
   repoDir: string,

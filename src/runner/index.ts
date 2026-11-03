@@ -4,7 +4,7 @@ import { runImplementTask } from "./implement.js";
 import { logger } from "../shared/logger.js";
 
 async function main(): Promise<void> {
-  logger.info("démarrage du runner", {
+  logger.info("runner starting", {
     task: runnerEnv.task,
     owner: runnerEnv.repoOwner,
     repo: runnerEnv.repoName,
@@ -20,16 +20,16 @@ async function main(): Promise<void> {
       await runImplementTask();
       break;
     default:
-      throw new Error(`Tâche inconnue: ${runnerEnv.task satisfies never}`);
+      throw new Error(`Unknown task: ${runnerEnv.task satisfies never}`);
   }
 }
 
 main()
   .then(() => {
-    logger.info("tâche terminée avec succès");
+    logger.info("task completed successfully");
     process.exit(0);
   })
   .catch((error) => {
-    logger.error("tâche terminée en échec", { error: String(error) });
+    logger.error("task failed", { error: String(error) });
     process.exit(1);
   });

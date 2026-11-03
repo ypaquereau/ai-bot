@@ -9,7 +9,7 @@ export function isBotSender(sender: { type?: string; login?: string } | undefine
 
 const WRITE_LEVEL_PERMISSIONS = new Set(["admin", "write"]);
 
-/** Vérifie que `username` a au moins le droit write sur `owner/repo`. */
+/** Checks that `username` has at least write access on `owner/repo`. */
 export async function hasWriteAccess(
   octokit: Octokit,
   owner: string,
